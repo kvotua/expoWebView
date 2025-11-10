@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "no-router-app",
-    "slug": "no-router-app",
+    "name": "billPonarth",
+    "slug": "billPonarth",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -20,10 +20,30 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "package": "com.plalkeo.billPonarth",
+      "softwareKeyboardLayoutMode": "pan",
+      "navigationBar": {
+        "visible": false,
+        "backgroundColor": "#ffffff00"
+      }
     },
     "web": {
       "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      [
+        "expo-navigation-bar",
+        {
+          "backgroundColor": "#ffffff00",
+          "visible": "sticky-immersive"
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "15dee69f-38a2-49ac-98ac-87dcb987770d"
+      }
     }
   }
 }
