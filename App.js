@@ -1,57 +1,144 @@
-import React, { Component } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { WebView } from 'react-native-webview';
 import { View, Platform } from 'react-native';
 import { activateKeepAwake } from 'expo-keep-awake';
 import { StatusBar } from 'expo-status-bar';
 import * as NavigationBar from 'expo-navigation-bar';
+import { ExpoPlayAudioStream, PlaybackModes } from '@mykin-ai/expo-audio-stream';
 
-export default class MyWeb extends Component {
-  webViewRef = null;
+export default function MyWeb() {
+  const webViewRef = useRef(null);
+  const ws = useRef(null);
+  const subscription = useRef(null);
 
-  async componentDidMount() {
-    activateKeepAwake();
-    
-    // Скрываем нижнюю панель навигации на Android
-    if (Platform.OS === 'android') {
-      try {
-        await NavigationBar.setVisibilityAsync("hidden");
-        await NavigationBar.setBehaviorAsync('overlay-swipe');
-        await NavigationBar.setBackgroundColorAsync('#ffffff00');
-      } catch (error) {
-        console.log('NavigationBar setup error:', error);
+  const API_URL = process.env.EXPO_PUBLIC_API_URL;
+
+  const [isRecording, setIsRecording] = useState(false);
+
+  const SAMPLE_RATE = 48000;
+  const CHUNK_INTERVAL = 250;
+
+  const startStreaming = async () => {
+    try {
+      console.log("Requesting recording permissions...");
+      const permission = await ExpoPlayAudioStream.requestPermissionsAsync();
+
+      if (!permission.granted) {
+        console.error("Permission to record was denied.");
+        Alert.alert("Ошибка!", "Для работы приложения необходимо разрешение на использование микрофона.");
+        return;
       }
-    }
-  }
+      ws.current = new WebSocket(API_URL);
 
-  render() {
-    return (
-      <View style={{ flex: 1, backgroundColor: '#ffffff' }}>
-        <StatusBar hidden={true} />
-        <WebView
-          ref={(ref) => (this.webViewRef = ref)}
-          source={{ uri: 'https://factory.thankstab.com/' }}
-          style={{ flex: 1, backgroundColor: '#ffffff' }}
-          setSupportMultipleWindows={false}
-          bounces={false}
-          overScrollMode="never"
-          scrollEnabled={true}
-          scalesPageToFit={true}
-          setBuiltInZoomControls={false}
-          setDisplayZoomControls={false}
-          // Критически важные настройки для работы Canvas
-          javaScriptEnabled={true}
-          domStorageEnabled={true}
-          allowFileAccess={true}
-          allowUniversalAccessFromFileURLs={true}
-          allowFileAccessFromFileURLs={true}
-          mixedContentMode="always"
-          // Настройки для улучшения производительности
-          hardwareAccelerationEnabled={true}
-          useWebKit={true}
-          onShouldStartLoadWithRequest={(request) => {
-            return true;
-          }}
-          injectedJavaScript={`
+      ws.current.onopen = async () => {
+        console.log("WebSocket connected, starting mic...");
+
+        await ExpoPlayAudioStream.setSoundConfig({
+          sampleRate: SAMPLE_RATE,
+          playbackMode: PlaybackModes.REGULAR,
+        });
+
+        const result = await ExpoPlayAudioStream.startRecording({
+          sampleRate: SAMPLE_RATE,
+          channels: 1,
+          encoding: "pcm_16bit",
+          interval: CHUNK_INTERVAL,
+          onAudioStream: async (event) => {
+            if (ws.current && ws.current.readyState === WebSocket.OPEN) {
+              ws.current.send(event.data);
+
+              console.log(`Sent chunk. Size: ${event.eventDataSize}`);
+            }
+          },
+        });
+
+        subscription.current = result?.subscription;
+
+        setIsRecording(true);
+      };
+
+      ws.current.onerror = (error) => {
+        console.error('WebSocket Error Event:', JSON.stringify(error, null, 2));
+        // Alert.alert('Ошибка!', JSON.stringify(error, null, 2));
+        // console.log('Произошла ошибка WebSocket. Подробности смотрите в событии onclose.');
+      };
+
+      ws.current.onclose = (event) => {
+        // console.log('WebSocket Closed');
+        // console.log(`  Code: ${event.code}`);
+        // console.log(`  Reason: ${event.reason}`);
+
+        stopStreaming();
+      };
+
+    } catch (e) {
+      console.error("Error starting:", e);
+    }
+  };
+
+  const stopStreaming = async () => {
+    try {
+      await ExpoPlayAudioStream.stopRecording();
+
+      if (subscription.current?.remove) {
+        subscription.current.remove();
+      }
+
+      if (ws.current) {
+        ws.current.close();
+        ws.current = null;
+      }
+
+      setIsRecording(false);
+      console.log("Stopped.");
+    } catch (e) {
+      console.error("Error stopping:", e);
+    } finally {
+      await startStreaming();
+    }
+  };
+
+  useEffect(() => {
+    activateKeepAwake();
+
+    if (Platform.OS === 'android') {
+      NavigationBar.setVisibilityAsync('hidden');
+      NavigationBar.setBehaviorAsync('overlay-swipe');
+      NavigationBar.setBackgroundColorAsync('#ffffff00');
+    }
+
+    startStreaming();
+
+    return () => stopStreaming();
+  }, []);
+  return (
+    <View style={{ flex: 1, backgroundColor: '#ffffff' }}>
+      <StatusBar hidden={true} />
+      <WebView
+        ref={webViewRef}
+        source={{ uri: 'https://factory.thankstab.com/' }}
+        style={{ flex: 1, backgroundColor: '#ffffff' }}
+        setSupportMultipleWindows={false}
+        bounces={false}
+        overScrollMode="never"
+        scrollEnabled={true}
+        scalesPageToFit={true}
+        setBuiltInZoomControls={false}
+        setDisplayZoomControls={false}
+        // Критически важные настройки для работы Canvas
+        javaScriptEnabled={true}
+        domStorageEnabled={true}
+        allowFileAccess={true}
+        allowUniversalAccessFromFileURLs={true}
+        allowFileAccessFromFileURLs={true}
+        mixedContentMode="always"
+        // Настройки для улучшения производительности
+        hardwareAccelerationEnabled={true}
+        useWebKit={true}
+        onShouldStartLoadWithRequest={(request) => {
+          return true;
+        }}
+        injectedJavaScript={`
             // Запрещаем масштабирование
             const meta = document.createElement('meta');
             meta.name = 'viewport';
@@ -153,20 +240,19 @@ export default class MyWeb extends Component {
             console.log('Canvas enhancements applied');
             true;
           `}
-          // Обработка сообщений для отладки
-          onMessage={(event) => {
-            console.log('WebView message:', event.nativeEvent.data);
-          }}
-          // Обработка ошибок загрузки
-          onError={(error) => {
-            console.log('WebView error:', error);
-          }}
-          // Обработка завершения загрузки
-          onLoadEnd={() => {
-            console.log('WebView loaded successfully');
-          }}
-        />
-      </View>
-    );
-  }
+        // Обработка сообщений для отладки
+        onMessage={(event) => {
+          console.log('WebView message:', event.nativeEvent.data);
+        }}
+        // Обработка ошибок загрузки
+        onError={(error) => {
+          console.log('WebView error:', error);
+        }}
+        // Обработка завершения загрузки
+        onLoadEnd={() => {
+          console.log('WebView loaded successfully');
+        }}
+      />
+    </View>
+  );
 }

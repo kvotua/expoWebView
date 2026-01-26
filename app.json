@@ -38,6 +38,17 @@
           "backgroundColor": "#ffffff00",
           "visible": "sticky-immersive"
         }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true
+          },
+          "ios": {
+            "flipper": true
+          }
+        }
       ]
     ],
     "extra": {

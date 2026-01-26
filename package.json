@@ -9,7 +9,9 @@
     "web": "expo start --web"
   },
   "dependencies": {
+    "@mykin-ai/expo-audio-stream": "^0.3.5",
     "expo": "~54.0.23",
+    "expo-build-properties": "^1.0.10",
     "expo-keep-awake": "~15.0.7",
     "expo-navigation-bar": "~5.0.9",
     "expo-status-bar": "~3.0.8",
