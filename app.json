@@ -26,7 +26,9 @@
       "navigationBar": {
         "visible": false,
         "backgroundColor": "#ffffff00"
-      }
+      },
+      "permissions": ["RECORD_AUDIO"],
+      "usesCleartextTraffic": true
     },
     "web": {
       "favicon": "./assets/favicon.png"

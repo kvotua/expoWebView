@@ -1,116 +1,297 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { WebView } from 'react-native-webview';
-import { View, Platform } from 'react-native';
+import { View, Platform, PermissionsAndroid, AppState, BackHandler } from 'react-native';
 import { activateKeepAwake } from 'expo-keep-awake';
 import { StatusBar } from 'expo-status-bar';
 import * as NavigationBar from 'expo-navigation-bar';
-import { ExpoPlayAudioStream, PlaybackModes } from '@mykin-ai/expo-audio-stream';
+import AudioRecord from 'react-native-audio-record';
+import * as Application from 'expo-application';
+import * as Device from 'expo-device';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+const API_URL = process.env.EXPO_PUBLIC_API_URL;
+const STATUS_API_URL = process.env.EXPO_PUBLIC_STATUS_API_URL;
 
 export default function MyWeb() {
   const webViewRef = useRef(null);
   const ws = useRef(null);
-  const subscription = useRef(null);
-
-  const API_URL = process.env.EXPO_PUBLIC_API_URL;
-
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [status, setStatus] = useState('Ожидание...');
   const [isRecording, setIsRecording] = useState(false);
+  const [appState, setAppState] = useState(AppState.currentState);
+  const [deviceId, setDeviceId] = useState(null);
+  const lastSendRef = useRef(Date.now());
+  const sendWatchdogRef = useRef(null);
+
+  const reconnectTimeout = useRef(null);
+  const reconnectAttempts = useRef(0);
+  const shouldReconnect = useRef(true);
+
+  const MAX_RECONNECT_DELAY = 30000;
 
   const SAMPLE_RATE = 48000;
-  const CHUNK_INTERVAL = 250;
 
-  const startStreaming = async () => {
+  const getOrCreateDeviceId = async () => {
     try {
-      console.log("Requesting recording permissions...");
-      const permission = await ExpoPlayAudioStream.requestPermissionsAsync();
+      // Пытаемся получить сохраненный ID
+      const savedDeviceId = await AsyncStorage.getItem('@device_id');
 
-      if (!permission.granted) {
-        console.error("Permission to record was denied.");
-        Alert.alert("Ошибка!", "Для работы приложения необходимо разрешение на использование микрофона.");
-        return;
+      if (savedDeviceId) {
+        console.log('Found saved device ID:', savedDeviceId);
+        return savedDeviceId;
       }
-      ws.current = new WebSocket(API_URL);
 
-      ws.current.onopen = async () => {
-        console.log("WebSocket connected, starting mic...");
+      // Генерируем новый постоянный ID
+      let newDeviceId;
 
-        await ExpoPlayAudioStream.setSoundConfig({
-          sampleRate: SAMPLE_RATE,
-          playbackMode: PlaybackModes.REGULAR,
-        });
+      if (Platform.OS === 'android') {
+        // Для Android используем installationId или генерируем на основе устройства
+        const installationId = await Application.getAndroidId();
+        newDeviceId = installationId ||
+          `android_${Device.modelId || 'unknown'}_${Date.now()}`;
+      } else if (Platform.OS === 'ios') {
+        // Для iOS используем identifierForVendor или генерируем
+        const iosId = await Application.getIosIdForVendorAsync();
+        newDeviceId = iosId ||
+          `ios_${Device.modelId || 'unknown'}_${Date.now()}`;
+      } else {
+        // Для других платформ
+        newDeviceId = `${Platform.OS}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      }
 
-        const result = await ExpoPlayAudioStream.startRecording({
-          sampleRate: SAMPLE_RATE,
-          channels: 1,
-          encoding: "pcm_16bit",
-          interval: CHUNK_INTERVAL,
-          onAudioStream: async (event) => {
-            if (ws.current && ws.current.readyState === WebSocket.OPEN) {
-              ws.current.send(event.data);
+      // Сохраняем для будущих запусков
+      await AsyncStorage.setItem('@device_id', newDeviceId);
+      console.log('Created new device ID:', newDeviceId);
 
-              console.log(`Sent chunk. Size: ${event.eventDataSize}`);
-            }
-          },
-        });
+      return newDeviceId;
 
-        subscription.current = result?.subscription;
-
-        setIsRecording(true);
-      };
-
-      ws.current.onerror = (error) => {
-        console.error('WebSocket Error Event:', JSON.stringify(error, null, 2));
-        // Alert.alert('Ошибка!', JSON.stringify(error, null, 2));
-        // console.log('Произошла ошибка WebSocket. Подробности смотрите в событии onclose.');
-      };
-
-      ws.current.onclose = (event) => {
-        // console.log('WebSocket Closed');
-        // console.log(`  Code: ${event.code}`);
-        // console.log(`  Reason: ${event.reason}`);
-
-        stopStreaming();
-      };
-
-    } catch (e) {
-      console.error("Error starting:", e);
+    } catch (error) {
+      console.error('Error getting device ID:', error);
+      // Fallback: генерируем случайный, но пытаемся сохранить
+      const fallbackId = `${Platform.OS}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      try {
+        await AsyncStorage.setItem('@device_id', fallbackId);
+      } catch (e) { }
+      return fallbackId;
     }
   };
 
-  const stopStreaming = async () => {
-    try {
-      await ExpoPlayAudioStream.stopRecording();
-
-      if (subscription.current?.remove) {
-        subscription.current.remove();
-      }
-
-      if (ws.current) {
-        ws.current.close();
-        ws.current = null;
-      }
-
-      setIsRecording(false);
-      console.log("Stopped.");
-    } catch (e) {
-      console.error("Error stopping:", e);
-    } finally {
-      await startStreaming();
+  const sendAppStatus = async (status) => {
+    if (!deviceId) {
+      console.log('Device ID not ready yet');
+      return;
     }
+    try {
+      const response = await fetch(`${STATUS_API_URL}/devices/status`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          device_id: deviceId,
+          status: status,
+          platform: Platform.OS,
+          timestamp: new Date().toISOString(),
+        }),
+      });
+      console.log(`App status sent: ${status}`);
+    } catch (error) {
+      console.error('Error sending app status:', error);
+    }
+  };
+
+  const startHeartbeat = () => {
+    const heartbeatInterval = setInterval(() => {
+      if (AppState.currentState === 'active') {
+        sendAppStatus('heartbeat');
+      }
+    }, 30000);
+
+    return () => clearInterval(heartbeatInterval);
   };
 
   useEffect(() => {
-    activateKeepAwake();
+    // Инициализируем deviceId при запуске
+    const initDevice = async () => {
+      const id = await getOrCreateDeviceId();
+      setDeviceId(id);
+    };
 
-    if (Platform.OS === 'android') {
-      NavigationBar.setVisibilityAsync('hidden');
-      NavigationBar.setBehaviorAsync('overlay-swipe');
-      NavigationBar.setBackgroundColorAsync('#ffffff00');
-    }
+    initDevice();
+  }, []);
+
+  useEffect(() => {
+    if (Platform.OS !== 'android') return;
+
+    activateKeepAwake();
+    NavigationBar.setVisibilityAsync('hidden');
+    NavigationBar.setBehaviorAsync('overlay-swipe');
+    NavigationBar.setBackgroundColorAsync('#00000000');
+    sendAppStatus('opened');
 
     startStreaming();
 
-    return () => stopStreaming();
-  }, []);
+    const cleanupHeartbeat = startHeartbeat();
+
+    const subscription = AppState.addEventListener('change', nextAppState => {
+      if (appState.match(/inactive|background/) && nextAppState === 'active') {
+        sendAppStatus('resumed');
+        startStreaming();
+      } else if (nextAppState.match(/inactive|background/)) {
+        sendAppStatus('background');
+        stopStreaming();
+      }
+      setAppState(nextAppState);
+    });
+
+    const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
+      sendAppStatus('closing');
+      setTimeout(() => {
+        BackHandler.exitApp();
+      }, 1000);
+      return true;
+    });
+
+    return () => {
+      sendAppStatus('closed');
+      subscription.remove();
+      backHandler.remove();
+      cleanupHeartbeat();
+      destroyStreaming();
+    };
+  }, [deviceId]);
+
+  useEffect(() => {
+    setStatus(isSpeaking ? "Обнаружена речь" : "Тишина...");
+  }, [isSpeaking]);
+
+  useEffect(() => {
+    console.log(status);
+  }, [status]);
+
+  useEffect(() => {
+    sendWatchdogRef.current = setInterval(() => {
+      if (!isRecording) return;
+
+      const delta = Date.now() - lastSendRef.current;
+
+      if (delta > 7000) {
+        console.log('No audio sent for', delta, 'ms → stopping');
+        stopStreaming(true);
+      }
+    }, 3000);
+
+    return () => {
+      if (sendWatchdogRef.current) {
+        clearInterval(sendWatchdogRef.current);
+        sendWatchdogRef.current = null;
+      }
+    };
+  }, [isRecording]);
+
+  const scheduleReconnect = () => {
+    console.log(`if shouldReconnect.current(${shouldReconnect.current}) - true, значит выполняем`);
+    if (!shouldReconnect.current) return;
+
+    const delay = Math.min(
+      1000 * Math.pow(2, reconnectAttempts.current),
+      MAX_RECONNECT_DELAY
+    );
+
+    console.log(`Reconnect in ${delay} ms | attempts: ${reconnectAttempts.current}`);
+    reconnectTimeout.current = setTimeout(() => {
+      reconnectAttempts.current++;
+      startStreaming();
+    }, delay);
+  };
+
+  const startStreaming = async () => {
+    if (ws.current?.readyState === WebSocket.OPEN) return;
+
+    try {
+      const granted = await PermissionsAndroid.request(
+        PermissionsAndroid.PERMISSIONS.RECORD_AUDIO
+      );
+
+      if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
+        setStatus("Нет доступа к микрофону");
+        return;
+      }
+
+      AudioRecord.init({
+        sampleRate: SAMPLE_RATE,
+        channels: 1,
+        bitsPerSample: 16,
+        audioSource: 6,
+      });
+
+      ws.current = new WebSocket(API_URL);
+
+      ws.current.onopen = () => {
+        console.log("WS connected");
+        reconnectAttempts.current = 0;
+        shouldReconnect.current = false;
+
+        AudioRecord.start();
+        setIsRecording(true);
+
+        AudioRecord.on("data", chunk => {
+          if (ws.current?.readyState === WebSocket.OPEN) {
+            ws.current.send(chunk);
+            lastSendRef.current = Date.now();
+          }
+        });
+      };
+
+      ws.current.onerror = err => {
+        console.log("WS error", err);
+      };
+
+      ws.current.onclose = e => {
+        shouldReconnect.current = true;
+        console.log("WS closed", e.code);
+        stopStreaming(true);
+      };
+
+    } catch (e) {
+      console.error("Start error", e);
+      scheduleReconnect();
+    }
+  };
+
+  const stopStreaming = async (reconnect = true) => {
+    // console.log(`isRecording: ${isRecording} | ws.current: ${ws.current} | reconnect: ${reconnect}`);
+    // if (!isRecording && !ws.current) return;
+    let tempVar = isRecording;
+    try {
+      if (reconnectTimeout.current) {
+        console.log('if (reconnectTimeout.current) {');
+        clearTimeout(reconnectTimeout.current);
+        reconnectTimeout.current = null;
+      }
+
+      if (isRecording) {
+        console.log('if (isRecording) {');
+        AudioRecord.stop();
+        setIsRecording(false);
+        tempVar = false;
+      }
+
+      if (ws.current) {
+        console.log('if (ws.current) {');
+        ws.current.close();
+        ws.current = null;
+      }
+    } finally {
+      if (reconnect && !tempVar) scheduleReconnect();
+    }
+  };
+
+  const destroyStreaming = () => {
+    shouldReconnect.current = false;
+    stopStreaming(false);
+  };
+
   return (
     <View style={{ flex: 1, backgroundColor: '#ffffff' }}>
       <StatusBar hidden={true} />
