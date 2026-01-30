@@ -19,7 +19,6 @@ export default function MyWeb() {
   const [status, setStatus] = useState('Ожидание...');
   const [isRecording, setIsRecording] = useState(false);
   const [appState, setAppState] = useState(AppState.currentState);
-  const [deviceId, setDeviceId] = useState(null);
   const lastSendRef = useRef(Date.now());
   const sendWatchdogRef = useRef(null);
 
@@ -77,6 +76,7 @@ export default function MyWeb() {
   };
 
   const sendAppStatus = async (status) => {
+    const deviceId = await getOrCreateDeviceId();;
     if (!deviceId) {
       console.log('Device ID not ready yet');
       return;
@@ -105,20 +105,10 @@ export default function MyWeb() {
       if (AppState.currentState === 'active') {
         sendAppStatus('heartbeat');
       }
-    }, 30000);
+    }, 60000);
 
     return () => clearInterval(heartbeatInterval);
   };
-
-  useEffect(() => {
-    // Инициализируем deviceId при запуске
-    const initDevice = async () => {
-      const id = await getOrCreateDeviceId();
-      setDeviceId(id);
-    };
-
-    initDevice();
-  }, []);
 
   useEffect(() => {
     if (Platform.OS !== 'android') return;
@@ -129,6 +119,7 @@ export default function MyWeb() {
     NavigationBar.setBackgroundColorAsync('#00000000');
     sendAppStatus('opened');
 
+    console.log('startStreaming 1');
     startStreaming();
 
     const cleanupHeartbeat = startHeartbeat();
@@ -136,10 +127,10 @@ export default function MyWeb() {
     const subscription = AppState.addEventListener('change', nextAppState => {
       if (appState.match(/inactive|background/) && nextAppState === 'active') {
         sendAppStatus('resumed');
-        startStreaming();
+        // startStreaming();
       } else if (nextAppState.match(/inactive|background/)) {
         sendAppStatus('background');
-        stopStreaming();
+        // stopStreaming(false);
       }
       setAppState(nextAppState);
     });
@@ -159,7 +150,7 @@ export default function MyWeb() {
       cleanupHeartbeat();
       destroyStreaming();
     };
-  }, [deviceId]);
+  }, []);
 
   useEffect(() => {
     setStatus(isSpeaking ? "Обнаружена речь" : "Тишина...");
@@ -201,6 +192,7 @@ export default function MyWeb() {
     console.log(`Reconnect in ${delay} ms | attempts: ${reconnectAttempts.current}`);
     reconnectTimeout.current = setTimeout(() => {
       reconnectAttempts.current++;
+      console.log('startStreaming 2');
       startStreaming();
     }, delay);
   };
@@ -260,25 +252,20 @@ export default function MyWeb() {
   };
 
   const stopStreaming = async (reconnect = true) => {
-    // console.log(`isRecording: ${isRecording} | ws.current: ${ws.current} | reconnect: ${reconnect}`);
-    // if (!isRecording && !ws.current) return;
     let tempVar = isRecording;
     try {
       if (reconnectTimeout.current) {
-        console.log('if (reconnectTimeout.current) {');
         clearTimeout(reconnectTimeout.current);
         reconnectTimeout.current = null;
       }
 
       if (isRecording) {
-        console.log('if (isRecording) {');
         AudioRecord.stop();
         setIsRecording(false);
         tempVar = false;
       }
 
       if (ws.current) {
-        console.log('if (ws.current) {');
         ws.current.close();
         ws.current = null;
       }
