@@ -28,7 +28,7 @@ export default function MyWeb() {
 
   const MAX_RECONNECT_DELAY = 30000;
 
-  const SAMPLE_RATE = 48000;
+  const SAMPLE_RATE = 16000;
 
   const getOrCreateDeviceId = async () => {
     try {
@@ -110,6 +110,20 @@ export default function MyWeb() {
     return () => clearInterval(heartbeatInterval);
   };
 
+  const handleStreamingBasedOnTime = () => {
+    const currentHour = new Date().getHours();
+
+    const isWithinTimeWindow = currentHour >= 10 && currentHour < 22;
+
+    if (isWithinTimeWindow && !isRecording) {
+      console.log('Время начинать стриминг!');
+      startStreaming();
+    } else if (!isWithinTimeWindow && isRecording) {
+      console.log('Время останавливать стриминг.');
+      destroyStreaming();
+    }
+  };
+
   useEffect(() => {
     if (Platform.OS !== 'android') return;
 
@@ -120,7 +134,11 @@ export default function MyWeb() {
     sendAppStatus('opened');
 
     console.log('startStreaming 1');
-    startStreaming();
+    // startStreaming();
+    handleStreamingBasedOnTime();
+
+    // Устанавливаем интервал для проверки времени каждую минуту
+    const timeCheckInterval = setInterval(handleStreamingBasedOnTime, 60000);
 
     const cleanupHeartbeat = startHeartbeat();
 
@@ -144,6 +162,7 @@ export default function MyWeb() {
     });
 
     return () => {
+      clearInterval(timeCheckInterval);
       sendAppStatus('closed');
       subscription.remove();
       backHandler.remove();
