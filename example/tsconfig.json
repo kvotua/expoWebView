@@ -1,0 +1,10 @@
+{
+  "extends": "expo/tsconfig.base",
+  "compilerOptions": {
+    "strict": true,
+    "paths": {
+      "expo-vad-detector": ["../src/index"],
+      "expo-vad-detector/*": ["../src/*"]
+    }
+  }
+}

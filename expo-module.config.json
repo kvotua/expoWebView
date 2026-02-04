@@ -1,0 +1,9 @@
+{
+  "platforms": ["apple", "android", "web"],
+  "apple": {
+    "modules": ["ExpoVadDetectorModule"]
+  },
+  "android": {
+    "modules": ["expo.modules.vaddetector.ExpoVadDetectorModule"]
+  }
+}
