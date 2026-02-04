@@ -1,11 +1,13 @@
-import { requireNativeView } from 'expo';
-import * as React from 'react';
+import React from 'react';
+import { View, Text } from 'react-native';
 
-import { ExpoVadDetectorViewProps } from './ExpoVadDetector.types';
+// Если у вас нет View компонента, создайте простую заглушку
+const ExpoVadDetectorView = () => {
+  return (
+    <View style={{ padding: 20, backgroundColor: '#f0f0f0' }}>
+      <Text>VAD Detector View (Native only)</Text>
+    </View>
+  );
+};
 
-const NativeView: React.ComponentType<ExpoVadDetectorViewProps> =
-  requireNativeView('ExpoVadDetector');
-
-export default function ExpoVadDetectorView(props: ExpoVadDetectorViewProps) {
-  return <NativeView {...props} />;
-}
+export default ExpoVadDetectorView;

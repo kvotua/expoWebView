@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+
+# Simple gradle wrapper for Unix
+GRADLE_VERSION="8.7"
+GRADLE_HOME="$HOME/.gradle/wrapper/dists/gradle-$GRADLE_VERSION-all"
+
+if [ ! -d "$GRADLE_HOME" ]; then
+    echo "Downloading Gradle $GRADLE_VERSION..."
+    mkdir -p "$HOME/.gradle/wrapper/dists"
+    wget -q "https://services.gradle.org/distributions/gradle-$GRADLE_VERSION-all.zip" -P /tmp/
+    unzip -q "/tmp/gradle-$GRADLE_VERSION-all.zip" -d "$HOME/.gradle/wrapper/dists/"
+    rm "/tmp/gradle-$GRADLE_VERSION-all.zip"
+fi
+
+# Find gradle executable
+GRADLE_EXEC=$(find "$HOME/.gradle/wrapper/dists/gradle-$GRADLE_VERSION-all" -name "gradle" -type f | head -1)
+
+if [ -z "$GRADLE_EXEC" ]; then
+    echo "Gradle not found, using system gradle"
+    exec gradle "$@"
+else
+    echo "Using Gradle from: $GRADLE_EXEC"
+    exec "$GRADLE_EXEC" "$@"
+fi

@@ -41,3 +41,19 @@ android {
     abortOnError false
   }
 }
+
+repositories {
+  // flatDir {
+  //   dirs 'libs'  // Добавляем локальную папку libs как репозиторий
+  // }
+}
+
+dependencies {
+  implementation project(':expo-modules-core')
+  
+  implementation 'androidx.core:core-ktx:1.12.0'
+  implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3'
+
+  // implementation(name: 'android-vad-webrtc-v2.0.10-release', ext: 'aar')
+  implementation fileTree(dir: 'libs', include: ['*.aar', '*.jar'])
+}

@@ -1,15 +1,13 @@
-import * as React from 'react';
+import React from 'react';
+import { View, Text } from 'react-native';
 
-import { ExpoVadDetectorViewProps } from './ExpoVadDetector.types';
-
-export default function ExpoVadDetectorView(props: ExpoVadDetectorViewProps) {
+// Web implementation of ExpoVadDetectorView
+const ExpoVadDetectorView = () => {
   return (
-    <div>
-      <iframe
-        style={{ flex: 1 }}
-        src={props.url}
-        onLoad={() => props.onLoad({ nativeEvent: { url: props.url } })}
-      />
-    </div>
+    <View style={{ padding: 20, backgroundColor: '#e0e0e0' }}>
+      <Text>VAD Detector View (Web not supported)</Text>
+    </View>
   );
-}
+};
+
+export default ExpoVadDetectorView;
