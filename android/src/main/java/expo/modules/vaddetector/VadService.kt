@@ -42,13 +42,13 @@ class VadService {
             else -> FrameSize.FRAME_SIZE_320
         }
         
-        val mode = when (currentConfig["mode"] as? Int) {
-            0 -> Mode.QUALITY
-            1 -> Mode.LOW_BITRATE
-            2 -> Mode.AGGRESSIVE
-            3 -> Mode.VERY_AGGRESSIVE
-            else -> Mode.VERY_AGGRESSIVE
-        }
+        // val mode = when (currentConfig["mode"] as? Int) {
+        //     0 -> Mode.QUALITY
+        //     1 -> Mode.LOW_BITRATE
+        //     2 -> Mode.AGGRESSIVE
+        //     3 -> Mode.VERY_AGGRESSIVE
+        //     else -> Mode.VERY_AGGRESSIVE
+        // }
         
         val silenceDurationMs = currentConfig["silenceDurationMs"] as? Int ?: 300
         val speechDurationMs = currentConfig["speechDurationMs"] as? Int ?: 50
@@ -56,7 +56,7 @@ class VadService {
         vad = Vad.builder()
             .setSampleRate(sampleRate)
             .setFrameSize(frameSize)
-            .setMode(mode)
+            .setMode(Mode.VERY_AGGRESSIVE)
             .setSilenceDurationMs(silenceDurationMs)
             .setSpeechDurationMs(speechDurationMs)
             .build()
