@@ -1,57 +1,81 @@
-import { EventEmitter } from 'expo-modules-core';
-
-import { ExpoVadDetectorModule, ExpoVadDetectorModuleEvents } from './ExpoVadDetector.types';
+import { ExpoVadDetectorModule, ExpoVadDetectorModuleEvents, VadConfig } from './ExpoVadDetector.types';
 
 // Web implementation of the ExpoVadDetectorModule
 export default {
-  PI: Math.PI,
-  
+  // Константы
+  SampleRate: {
+    SAMPLE_RATE_8K: 8000,
+    SAMPLE_RATE_16K: 16000,
+    SAMPLE_RATE_32K: 32000,
+    SAMPLE_RATE_48K: 48000,
+  },
+  FrameSize: {
+    FRAME_SIZE_80: 80,
+    FRAME_SIZE_160: 160,
+    FRAME_SIZE_240: 240,
+    FRAME_SIZE_320: 320,
+    FRAME_SIZE_480: 480,
+  },
+  Mode: {
+    NORMAL: 0,
+    LOW_BITRATE: 1,
+    AGGRESSIVE: 2,
+    VERY_AGGRESSIVE: 3,
+  },
+
+  // Общие методы
   hello(): string {
     return 'Hello from the web!';
   },
-  
-  async setValueAsync(value: string): Promise<void> {
-    console.log('Setting value on web:', value);
-  },
-  
-  // VAD методы - заглушки для web
-  async initializeAsync(config: any): Promise<{ success: boolean; error?: string }> {
+  async initializeAsync(config?: VadConfig) {
     console.log('VAD initialize on web:', config);
-    return { success: false, error: 'VAD not supported on web' };
+    return { success: false, error: 'VAD not supported on web', simulator: true };
   },
-  
-  async startAsync(): Promise<{ success: boolean; error?: string }> {
-    console.log('VAD start on web');
-    return { success: false, error: 'VAD not supported on web' };
-  },
-  
-  async stopAsync(): Promise<{ success: boolean; error?: string }> {
-    console.log('VAD stop on web');
-    return { success: false, error: 'VAD not supported on web' };
-  },
-  
-  async processFrameAsync(audioData: number[]): Promise<any> {
-    console.log('VAD process frame on web, length:', audioData.length);
+  async startAsync() { return { success: false, error: 'VAD not supported on web' }; },
+  async stopAsync() { return { success: false, error: 'VAD not supported on web' }; },
+  async processFrameAsync(audioData: number[] | Uint8Array | Int16Array) {
     return { error: 'VAD not supported on web' };
   },
-  
-  async processFramesAsync(frames: number[][]): Promise<any> {
-    console.log('VAD process frames on web, count:', frames.length);
+  async processFrameShortAsync(audioData: number[] | Uint8Array | Int16Array) {
     return { error: 'VAD not supported on web' };
   },
-  
-  getConfig(): any {
-    return {};
+  async processFramesAsync(frames: (number[] | Uint8Array | Int16Array)[]) {
+    return { error: 'VAD not supported on web' };
   },
-  
-  async cleanupAsync(): Promise<{ success: boolean }> {
-    return { success: true };
+  processFrame(audioData: any) { return null; },
+  getConfig() { return {}; },
+  async cleanupAsync() { return { success: true }; },
+  async checkPermissionsAsync() { return { hasPermission: false }; },
+
+  // WebRTC заглушки
+  async initializeWebRTC(config?: VadConfig) {
+    return { success: false, error: 'WebRTC not supported on web', simulator: true };
   },
-  
-  async checkPermissionsAsync(): Promise<{ hasPermission: boolean }> {
-    return { hasPermission: false };
+  async startWebRTC() { return { success: false, error: 'WebRTC not supported on web' }; },
+  async stopWebRTC() { return { success: false, error: 'WebRTC not supported on web' }; },
+  async processWebRTCFrame(audioData: number[]) { return { error: 'WebRTC not supported on web' }; },
+
+  // Silero заглушки
+  async initializeSilero(config?: VadConfig) {
+    return { success: false, error: 'Silero not supported on web' };
   },
-  
-  // События
-  ...new EventEmitter<ExpoVadDetectorModuleEvents>(),
-} as ExpoVadDetectorModule;
+  async startSilero() { return { success: false, error: 'Silero not supported on web' }; },
+  async stopSilero() { return { success: false, error: 'Silero not supported on web' }; },
+  async processSileroFrame(audioData: number[]) { return { error: 'Silero not supported on web' }; },
+
+  // Yamnet заглушки
+  async initializeYamnet(config?: VadConfig) {
+    return { success: false, error: 'Yamnet not supported on web' };
+  },
+  async startYamnet() { return { success: false, error: 'Yamnet not supported on web' }; },
+  async stopYamnet() { return { success: false, error: 'Yamnet not supported on web' }; },
+  async processYamnetFrame(audioData: number[]) { return { error: 'Yamnet not supported on web' }; },
+
+  // Заглушки для событий
+  addListener(eventName: keyof ExpoVadDetectorModuleEvents, handler: Function) {
+    console.warn(`Event "${eventName}" is not supported on web.`);
+  },
+  removeListeners(count: number) {
+    // ничего не делаем
+  },
+} as unknown as ExpoVadDetectorModule;

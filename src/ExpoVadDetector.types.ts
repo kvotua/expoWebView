@@ -46,19 +46,41 @@ export type ExpoVadDetectorModule = {
   
   // Методы
   hello(): string;
-  initializeAsync(config?: VadConfig): Promise<{ success: boolean; error?: string; simulator?: boolean }>;
+  // initializeWebRTC(config?: VadConfig): Promise<{ success: boolean; error?: string; simulator?: boolean }>;
   startAsync(): Promise<{ success: boolean; error?: string }>;
   stopAsync(): Promise<{ success: boolean; error?: string }>;
   processFrameAsync(audioData: number[] | Uint8Array | Int16Array): Promise<ProcessResult>;
   processFrameShortAsync(audioData: number[] | Uint8Array | Int16Array): Promise<ProcessResult>;
   processFramesAsync(frames: (number[] | Uint8Array | Int16Array)[]): Promise<ProcessResult>;
-  processFrame(audioData: any): any;
   getConfig(): VadConfig;
   cleanupAsync(): Promise<{ success: boolean }>;
   checkPermissionsAsync(): Promise<{ hasPermission: boolean }>;
+  
+  // WebRTC
+  initializeWebRTC(config?: VadConfig): Promise<{ success: boolean; error?: string; simulator?: boolean }>;
+  startWebRTC(): Promise<{ success: boolean; error?: string }>;
+  stopWebRTC(): Promise<{ success: boolean; error?: string }>;
+  processWebRTCFrame(audioData: number[]): Promise<ProcessResult>;
+
+  // Silero
+  initializeSilero(config?: VadConfig): Promise<{ success: boolean; error?: string }>;
+  startSilero(): Promise<{ success: boolean; error?: string }>;
+  stopSilero(): Promise<{ success: boolean; error?: string }>;
+  processSileroFrame(audioData: number[]): Promise<ProcessResult>;
+
+  // Yamnet
+  initializeYamnet(config?: VadConfig): Promise<{ success: boolean; error?: string }>;
+  startYamnet(): Promise<{ success: boolean; error?: string }>;
+  stopYamnet(): Promise<{ success: boolean; error?: string }>;
+  processYamnetFrame(audioData: number[]): Promise<ProcessResult>;
   
   // События
   addListener(eventName: 'onSpeechDetected', handler: (result: DetectionResult) => void): void;
   addListener(eventName: 'onError', handler: (error: string) => void): void;
   removeListeners(count: number): void;
+};
+
+export type ExpoVadDetectorModuleEvents = {
+  onSpeechDetected: (result: DetectionResult) => void;
+  onError: (error: string) => void;
 };

@@ -46,9 +46,27 @@ class ExpoVadDetectorModule : Module() {
         }
         
         // Инициализация VAD
-        AsyncFunction("initializeAsync") { config: Map<String, Any>? ->
+        AsyncFunction("initializeWebRTC") { config: Map<String, Any>? ->
             try {
-                vadService.initialize(config)
+                vadService.initializeWebRTC(config)
+                mapOf("success" to true, "simulator" to true)
+            } catch (e: Exception) {
+                sendEvent("onError", mapOf("error" to (e.message ?: "Unknown error")))
+                mapOf("success" to false, "error" to e.message, "simulator" to true)
+            }
+        }
+        AsyncFunction("initializeSilero") { config: Map<String, Any>? ->
+            try {
+                vadService.initializeSilero(config)
+                mapOf("success" to true, "simulator" to true)
+            } catch (e: Exception) {
+                sendEvent("onError", mapOf("error" to (e.message ?: "Unknown error")))
+                mapOf("success" to false, "error" to e.message, "simulator" to true)
+            }
+        }
+        AsyncFunction("initializeYamnet") { config: Map<String, Any>? ->
+            try {
+                vadService.initializeYamnet(config)
                 mapOf("success" to true, "simulator" to true)
             } catch (e: Exception) {
                 sendEvent("onError", mapOf("error" to (e.message ?: "Unknown error")))
@@ -57,9 +75,27 @@ class ExpoVadDetectorModule : Module() {
         }
         
         // Запуск детекции
-        AsyncFunction("startAsync") {
+        AsyncFunction("startWebRTC") {
             try {
-                vadService.start()
+                vadService.startWebRTC()
+                mapOf("success" to true)
+            } catch (e: Exception) {
+                sendEvent("onError", mapOf("error" to (e.message ?: "Unknown error")))
+                mapOf("success" to false, "error" to e.message)
+            }
+        }
+        AsyncFunction("startSilero") {
+            try {
+                vadService.startSilero()
+                mapOf("success" to true)
+            } catch (e: Exception) {
+                sendEvent("onError", mapOf("error" to (e.message ?: "Unknown error")))
+                mapOf("success" to false, "error" to e.message)
+            }
+        }
+        AsyncFunction("startYamnet") {
+            try {
+                vadService.startYamnet()
                 mapOf("success" to true)
             } catch (e: Exception) {
                 sendEvent("onError", mapOf("error" to (e.message ?: "Unknown error")))
@@ -68,18 +104,80 @@ class ExpoVadDetectorModule : Module() {
         }
         
         // Остановка детекции
-        AsyncFunction("stopAsync") {
+        AsyncFunction("stopWebRTC") {
             try {
-                vadService.stop()
+                vadService.stopWebRTC()
+                mapOf("success" to true)
+            } catch (e: Exception) {
+                mapOf("success" to false, "error" to e.message)
+            }
+        }
+        AsyncFunction("stopSilero") {
+            try {
+                vadService.stopSilero()
+                mapOf("success" to true)
+            } catch (e: Exception) {
+                mapOf("success" to false, "error" to e.message)
+            }
+        }
+        AsyncFunction("stopYamnet") {
+            try {
+                vadService.stopYamnet()
                 mapOf("success" to true)
             } catch (e: Exception) {
                 mapOf("success" to false, "error" to e.message)
             }
         }
         
-        AsyncFunction("processFrame") { audioData: List<Int> ->
+        AsyncFunction("processWebRTCFrame") { audioData: List<Int> ->
             try {
-                val isSpeech = vadService.processShortArrayFromJS(audioData)
+                val isSpeech = vadService.processWebRTCFrame(audioData)
+
+                if (isSpeech) {
+                    sendEvent(
+                        "onSpeechDetected",
+                        mapOf(
+                            "isSpeech" to true,
+                            "timestamp" to System.currentTimeMillis()
+                        )
+                    )
+                }
+
+                mapOf(
+                    "isSpeech" to isSpeech,
+                    "samplesProcessed" to audioData.size
+                )
+            } catch (e: Exception) {
+                mapOf("error" to (e.message ?: "Unknown error"))
+            }
+        }
+        
+        AsyncFunction("processSileroFrame") { audioData: List<Int> ->
+            try {
+                val isSpeech = vadService.processSileroFrame(audioData)
+
+                if (isSpeech) {
+                    sendEvent(
+                        "onSpeechDetected",
+                        mapOf(
+                            "isSpeech" to true,
+                            "timestamp" to System.currentTimeMillis()
+                        )
+                    )
+                }
+
+                mapOf(
+                    "isSpeech" to isSpeech,
+                    "samplesProcessed" to audioData.size
+                )
+            } catch (e: Exception) {
+                mapOf("error" to (e.message ?: "Unknown error"))
+            }
+        }
+        
+        AsyncFunction("processYamnetFrame") { audioData: List<Int> ->
+            try {
+                val isSpeech = vadService.processYamnetFrame(audioData)
 
                 if (isSpeech) {
                     sendEvent(
@@ -107,7 +205,7 @@ class ExpoVadDetectorModule : Module() {
         
         // Очистка ресурсов
         AsyncFunction("cleanupAsync") {
-            vadService.cleanup()
+            vadService.cleanupAsync()
             mapOf("success" to true)
         }
         
