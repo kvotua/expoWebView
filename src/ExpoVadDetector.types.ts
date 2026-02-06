@@ -9,12 +9,7 @@ export type VadConfig = {
 export type DetectionResult = {
   isSpeech: boolean;
   timestamp: number;
-};
-
-export type InitializeResult = {
-  success: boolean;
-  sampleRate: number;
-  frameSize: number;
+  simulator?: boolean;
 };
 
 export type ProcessResult = {
@@ -22,57 +17,48 @@ export type ProcessResult = {
   error?: string;
   success?: boolean;
   results?: boolean[];
-};
-
-export type ExpoVadDetectorModuleEvents = {
-  onSpeechDetected: (result: DetectionResult) => void;
-  onError: (error: string) => void;
+  samplesProcessed?: number;
+  framesProcessed?: number;
+  simulator?: boolean;
 };
 
 export type ExpoVadDetectorModule = {
   // Константы
-  PI: number;
-  
-  // Тестовые методы
-  hello(): string;
-  setValueAsync(value: string): Promise<void>;
-  
-  // VAD методы (те, которые мы реализовали в Kotlin)
-  initializeAsync(config?: VadConfig): Promise<{ success: boolean; error?: string }>;
-  startAsync(): Promise<{ success: boolean; error?: string }>;
-  stopAsync(): Promise<{ success: boolean; error?: string }>;
-  processFrameAsync(audioData: number[]): Promise<ProcessResult>;
-  processFramesAsync(frames: number[][]): Promise<ProcessResult>;
-  getConfig(): VadConfig;
-  cleanupAsync(): Promise<{ success: boolean }>;
-  checkPermissionsAsync(): Promise<{ hasPermission: boolean }>;
-  
-  // Статические значения (если есть)
-  SampleRate?: {
+  SampleRate: {
     SAMPLE_RATE_8K: number;
     SAMPLE_RATE_16K: number;
     SAMPLE_RATE_32K: number;
     SAMPLE_RATE_48K: number;
   };
-  FrameSize?: {
+  FrameSize: {
     FRAME_SIZE_80: number;
     FRAME_SIZE_160: number;
     FRAME_SIZE_240: number;
     FRAME_SIZE_320: number;
     FRAME_SIZE_480: number;
   };
-  Mode?: {
-    QUALITY: number;
+  Mode: {
+    NORMAL: number;
     LOW_BITRATE: number;
     AGGRESSIVE: number;
     VERY_AGGRESSIVE: number;
   };
-};
-
-// Типы для View (если есть компонент)
-export type ExpoVadDetectorViewProps = {
-  // Добавьте props для вашего view компонента, если он есть
-  value?: string;
-  onChange?: (event: { value: string }) => void;
-  style?: any;
+  
+  // Методы
+  hello(): string;
+  initializeAsync(config?: VadConfig): Promise<{ success: boolean; error?: string; simulator?: boolean }>;
+  startAsync(): Promise<{ success: boolean; error?: string }>;
+  stopAsync(): Promise<{ success: boolean; error?: string }>;
+  processFrameAsync(audioData: number[] | Uint8Array | Int16Array): Promise<ProcessResult>;
+  processFrameShortAsync(audioData: number[] | Uint8Array | Int16Array): Promise<ProcessResult>;
+  processFramesAsync(frames: (number[] | Uint8Array | Int16Array)[]): Promise<ProcessResult>;
+  processFrame(audioData: any): any;
+  getConfig(): VadConfig;
+  cleanupAsync(): Promise<{ success: boolean }>;
+  checkPermissionsAsync(): Promise<{ hasPermission: boolean }>;
+  
+  // События
+  addListener(eventName: 'onSpeechDetected', handler: (result: DetectionResult) => void): void;
+  addListener(eventName: 'onError', handler: (error: string) => void): void;
+  removeListeners(count: number): void;
 };

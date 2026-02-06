@@ -30,7 +30,7 @@ class ExpoVadDetectorModule : Module() {
                     "FRAME_SIZE_480" to 480
                 ),
                 "Mode" to mapOf(
-                    "QUALITY" to 0,
+                    "NORMAL" to 0,
                     "LOW_BITRATE" to 1,
                     "AGGRESSIVE" to 2,
                     "VERY_AGGRESSIVE" to 3
@@ -77,23 +77,26 @@ class ExpoVadDetectorModule : Module() {
             }
         }
         
-        // Обработка одного аудио фрейма
-        AsyncFunction("processFrameAsync") { audioData: ByteArray ->
+        AsyncFunction("processFrame") { audioData: List<Int> ->
             try {
-                val isSpeech = vadService.processAudioFrame(audioData)
-                
-                // Отправляем событие если обнаружена речь
+                val isSpeech = vadService.processShortArrayFromJS(audioData)
+
                 if (isSpeech) {
-                    sendEvent("onSpeechDetected", mapOf(
-                        "isSpeech" to isSpeech,
-                        "timestamp" to System.currentTimeMillis(),
-                        "simulator" to true
-                    ))
+                    sendEvent(
+                        "onSpeechDetected",
+                        mapOf(
+                            "isSpeech" to true,
+                            "timestamp" to System.currentTimeMillis()
+                        )
+                    )
                 }
-                
-                mapOf("isSpeech" to isSpeech, "simulator" to true)
+
+                mapOf(
+                    "isSpeech" to isSpeech,
+                    "samplesProcessed" to audioData.size
+                )
             } catch (e: Exception) {
-                mapOf("error" to e.message, "simulator" to true)
+                mapOf("error" to (e.message ?: "Unknown error"))
             }
         }
         
