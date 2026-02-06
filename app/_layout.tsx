@@ -1,8 +1,9 @@
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
-import { Stack } from 'expo-router';
+// import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
 
+import VADTest from '@/components/VADTest';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
 export const unstable_settings = {
@@ -13,9 +14,10 @@ export default function RootLayout() {
 
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <Stack>
+      {/* <Stack>
         <Stack.Screen name="index" options={{ headerShown: false }} />
-      </Stack>
+      </Stack> */}
+      <VADTest></VADTest>
       <StatusBar style="auto" hidden={true} />
     </ThemeProvider>
   );
