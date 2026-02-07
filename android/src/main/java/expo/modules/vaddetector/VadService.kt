@@ -171,35 +171,40 @@ class VadService {
         
         // Конвертируем List<Int> в ByteArray
         // JavaScript передает числа 0-255, нам нужно их конвертировать в байты
-        val byteArray = ByteArray(audioData.size)
+        // val byteArray = ByteArray(audioData.size)
         
-        for (i in audioData.indices) {
-            // JavaScript числа могут быть больше 255, нормализуем
-            val value = audioData[i]
-            byteArray[i] = (value and 0xFF).toByte()
-        }
+        // for (i in audioData.indices) {
+        //     // JavaScript числа могут быть больше 255, нормализуем
+        //     val value = audioData[i]
+        //     byteArray[i] = (value and 0xFF).toByte()
+        // }
         
         // Теперь конвертируем ByteArray в ShortArray для VAD
-        val shortArray = if (byteArray.size % 2 == 0) {
-            ByteBuffer.wrap(byteArray)
-                .order(ByteOrder.LITTLE_ENDIAN)
-                .asShortBuffer()
-                .let { buffer ->
-                    val shorts = ShortArray(buffer.remaining())
-                    buffer.get(shorts)
-                    shorts
-                }
-        } else {
-            // Если нечетное количество байт, отбрасываем последний
-            val trimmedByteArray = byteArray.copyOf(byteArray.size - 1)
-            ByteBuffer.wrap(trimmedByteArray)
-                .order(ByteOrder.LITTLE_ENDIAN)
-                .asShortBuffer()
-                .let { buffer ->
-                    val shorts = ShortArray(buffer.remaining())
-                    buffer.get(shorts)
-                    shorts
-                }
+        // val shortArray = if (byteArray.size % 2 == 0) {
+        //     ByteBuffer.wrap(byteArray)
+        //         .order(ByteOrder.LITTLE_ENDIAN)
+        //         .asShortBuffer()
+        //         .let { buffer ->
+        //             val shorts = ShortArray(buffer.remaining())
+        //             buffer.get(shorts)
+        //             shorts
+        //         }
+        // } else {
+        //     // Если нечетное количество байт, отбрасываем последний
+        //     val trimmedByteArray = byteArray.copyOf(byteArray.size - 1)
+        //     ByteBuffer.wrap(trimmedByteArray)
+        //         .order(ByteOrder.LITTLE_ENDIAN)
+        //         .asShortBuffer()
+        //         .let { buffer ->
+        //             val shorts = ShortArray(buffer.remaining())
+        //             buffer.get(shorts)
+        //             shorts
+        //         }
+        // }
+
+        val shortArray = ShortArray(audioData.size)
+        for (i in audioData.indices) {
+            shortArray[i] = audioData[i].toShort()
         }
         
         return vadWebRTC!!.isSpeech(shortArray)
