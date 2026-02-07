@@ -17,6 +17,7 @@
     "expo-keep-awake": "~15.0.7",
     "expo-navigation-bar": "~5.0.9",
     "expo-status-bar": "~3.0.8",
+    "expo-vad-detector": "file:../expo-vad-detector",
     "react": "19.1.0",
     "react-native": "0.81.5",
     "react-native-audio-record": "^0.2.2",

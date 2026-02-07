@@ -13,7 +13,8 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.plalkeo.billPonarth"
     },
     "android": {
       "adaptiveIcon": {
@@ -27,7 +28,9 @@
         "visible": false,
         "backgroundColor": "#ffffff00"
       },
-      "permissions": ["RECORD_AUDIO"],
+      "permissions": [
+        "RECORD_AUDIO"
+      ],
       "usesCleartextTraffic": true
     },
     "web": {
@@ -56,6 +59,10 @@
     "extra": {
       "eas": {
         "projectId": "15dee69f-38a2-49ac-98ac-87dcb987770d"
+      },
+      "expo-navigation-bar": {
+        "backgroundColor": "#ffffff00",
+        "visible": "sticky-immersive"
       }
     }
   }

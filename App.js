@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { WebView } from 'react-native-webview';
-import { View, Platform, PermissionsAndroid, AppState, BackHandler } from 'react-native';
+import { View, Platform, PermissionsAndroid, AppState, BackHandler, Alert, NativeModules } from 'react-native';
 import { activateKeepAwake } from 'expo-keep-awake';
 import { StatusBar } from 'expo-status-bar';
 import * as NavigationBar from 'expo-navigation-bar';
@@ -8,18 +8,32 @@ import AudioRecord from 'react-native-audio-record';
 import * as Application from 'expo-application';
 import * as Device from 'expo-device';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { requireNativeModule } from 'expo-modules-core';
+import ExpoVadDetectorModule, { VadConfig } from 'expo-vad-detector';
+
+const vadModule = requireNativeModule < ExpoVadDetectorModule > ('ExpoVadDetector');
+const vadModule2 = requireNativeModule < ExpoVadDetectorModule > ('ExpoVadDetector');
+const vadModule3 = requireNativeModule('ExpoVadDetector');
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL;
 const STATUS_API_URL = process.env.EXPO_PUBLIC_STATUS_API_URL;
 
+console.log(`API_URL: ${API_URL}`);
+
 export default function MyWeb() {
   const webViewRef = useRef(null);
   const ws = useRef(null);
+
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [status, setStatus] = useState('Ожидание...');
   const [isRecording, setIsRecording] = useState(false);
   const [appState, setAppState] = useState(AppState.currentState);
+
+  const audioQueue = useRef([]);
+
   const lastSendRef = useRef(Date.now());
+  const MIN_SEND_INTERVAL = 20;
+
   const sendWatchdogRef = useRef(null);
 
   const reconnectTimeout = useRef(null);
@@ -28,7 +42,8 @@ export default function MyWeb() {
 
   const MAX_RECONNECT_DELAY = 30000;
 
-  const SAMPLE_RATE = 16000;
+  const SAMPLE_RATE = 48000;
+  const FRAME_SIZE = 1440;
 
   const getOrCreateDeviceId = async () => {
     try {
@@ -127,13 +142,36 @@ export default function MyWeb() {
   useEffect(() => {
     if (Platform.OS !== 'android') return;
 
+    // console.log('Подробная информация о vadModule:');
+    // Object.keys(vadModule).forEach(key => {
+    //   console.log(`${key}:`, typeof vadModule[key]);
+    // });
+    // console.log('Подробная информация о vadModule2:');
+    // Object.keys(vadModule2).forEach(key => {
+    //   console.log(`${key}:`, typeof vadModule[key]);
+    // });
+    // console.log('Подробная информация о vadModule3:');
+    // Object.keys(vadModule3).forEach(key => {
+    //   console.log(`${key}:`, typeof vadModule[key]);
+    // });
+    // console.log('=== ExpoVadDetectorModule (default import) ===');
+    // console.log('Тип:', typeof ExpoVadDetectorModule);
+
+    // Проверяем, является ли это объектом
+    // if (ExpoVadDetectorModule && typeof ExpoVadDetectorModule === 'object') {
+    //   console.log('Методы:', Object.keys(ExpoVadDetectorModule));
+    // } else {
+    //   console.log('Значение:', ExpoVadDetectorModule);
+    // }
+
     activateKeepAwake();
     NavigationBar.setVisibilityAsync('hidden');
     NavigationBar.setBehaviorAsync('overlay-swipe');
     NavigationBar.setBackgroundColorAsync('#00000000');
+
     sendAppStatus('opened');
 
-    console.log('startStreaming 1');
+    // console.log('startStreaming 1');
     // startStreaming();
     handleStreamingBasedOnTime();
 
@@ -216,6 +254,72 @@ export default function MyWeb() {
     }, delay);
   };
 
+  function rms(frame) {
+    let sum = 0;
+    for (let i = 0; i < frame.length; i++) {
+      const v = frame[i] / 32768;
+      sum += v * v;
+    }
+    return Math.sqrt(sum / frame.length);
+  }
+
+  const processFrame = async (frame, frameSamples) => {
+    if (frame.length !== FRAME_SIZE) return;
+    const numbers = Array.from(frame);
+
+    // const energy = rms(frame);
+    // if (energy < 0.005) {
+    //   setIsSpeaking(false);
+    //   return;
+    // }
+
+    let res = await vadModule3.processWebRTCFrame(numbers);
+    const speaking = res?.isSpeech === true;
+
+    setIsSpeaking(speaking);
+
+    if (
+      speaking &&
+      ws.current?.readyState === WebSocket.OPEN
+      // Date.now() - lastSendRef.current > MIN_SEND_INTERVAL
+    ) {
+      // console.log(res);
+      ws.current.send(frame.buffer);
+      lastSendRef.current = Date.now();
+    }
+  };
+
+  const handleAudio = (base64) => {
+    if (ws.current?.readyState !== WebSocket.OPEN) return;
+
+
+
+    // 1. base64 → Int16Array (PCM16LE)
+    let pcm = AudioUtils.base64ToInt16(base64);
+    // if (pcm.length % 2 === 0) {
+    //   pcm = AudioUtils.stereoToMono(pcm);
+    // }
+    // console.log(`pcm.length = ${pcm.length}`);
+    if (pcm.length === 0) return;
+    
+    // ws.current.send(pcm.buffer);
+    // return;
+
+    // 2. кладём в очередь
+    for (let i = 0; i < pcm.length; i++) {
+      audioQueue.current.push(pcm[i]);
+    }
+
+    // 3. режем на фреймы
+    while (audioQueue.current.length >= FRAME_SIZE) {
+      const frameSamples = audioQueue.current.splice(0, FRAME_SIZE);
+      const frame = new Int16Array(frameSamples);
+
+      // 4. детект речи
+      processFrame(frame, frameSamples);
+    }
+  };
+
   const startStreaming = async () => {
     if (ws.current?.readyState === WebSocket.OPEN) return;
 
@@ -236,6 +340,12 @@ export default function MyWeb() {
         audioSource: 6,
       });
 
+      await vadModule3.initializeWebRTC({
+        sampleRate: SAMPLE_RATE,
+        frameSize: FRAME_SIZE, mode: 0
+      })
+      await vadModule3.startWebRTC();
+
       ws.current = new WebSocket(API_URL);
 
       ws.current.onopen = () => {
@@ -246,12 +356,7 @@ export default function MyWeb() {
         AudioRecord.start();
         setIsRecording(true);
 
-        AudioRecord.on("data", chunk => {
-          if (ws.current?.readyState === WebSocket.OPEN) {
-            ws.current.send(chunk);
-            lastSendRef.current = Date.now();
-          }
-        });
+        AudioRecord.on("data", handleAudio);
       };
 
       ws.current.onerror = err => {
@@ -301,8 +406,11 @@ export default function MyWeb() {
   return (
     <View style={{ flex: 1, backgroundColor: '#ffffff' }}>
       <StatusBar hidden={true} />
+
       <WebView
         ref={webViewRef}
+        cacheEnabled={true}
+        cacheMode='LOAD_CACHE_ELSE_NETWORK'
         source={{ uri: 'https://factory.thankstab.com/' }}
         style={{ flex: 1, backgroundColor: '#ffffff' }}
         setSupportMultipleWindows={false}
@@ -442,4 +550,25 @@ export default function MyWeb() {
       />
     </View>
   );
+}
+
+class AudioUtils {
+  static base64ToInt16(base64Data) {
+    const binaryString = atob(base64Data);
+    const bytes = new Uint8Array(binaryString.length);
+
+    for (let i = 0; i < binaryString.length; i++) {
+      bytes[i] = binaryString.charCodeAt(i);
+    }
+
+    return new Int16Array(bytes.buffer);
+  }
+
+  static stereoToMono(pcm) {
+    const mono = new Int16Array(pcm.length / 2);
+    for (let i = 0, j = 0; i < pcm.length; i += 2, j++) {
+      mono[j] = (pcm[i] + pcm[i + 1]) >> 1;
+    }
+    return mono;
+  }
 }
